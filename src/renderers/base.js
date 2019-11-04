@@ -5,6 +5,8 @@ import { mat4, vec4, vec3 } from 'gl-matrix';
 
 export const MAX_LIGHTS_PER_CLUSTER = 100;
 
+const PI = 3.141592653589793;
+
 function sin_atan(angle) {
   return angle / Math.sqrt(1.0 + angle * angle);
 }
@@ -34,8 +36,6 @@ export default class BaseRenderer {
         }
       }
     }
-
-    const PI = 3.141592653589793;
 
      // get frustum properties
      const halfFrustumHeight = Math.tan(camera.fov * PI / 360);
@@ -71,24 +71,25 @@ export default class BaseRenderer {
         let angle = xStart + x * xStride;
 
         let normal = vec3.fromValues(cos_atan(angle), 0, -sin_atan(angle));
-        let dotProduct = 0;
-        vec3.dot(dotProduct, lightPosView3, normal);
+        let dotProduct = vec3.dot(lightPosView3, normal);
+        //console.log("dotProduct = " + dotProduct);
 
         if (dotProduct < lightRadius) {
-          xMin = x;
+          xMin = Math.max(x - 1, 0);
           break;
         } 
       }
+      
 
       for (let x = xMin; x <= this._xSlices; ++x) {
         let angle = xStart + x * xStride;
 
         let normal = vec3.fromValues(cos_atan(angle), 0, -sin_atan(angle));
-        let dotProduct = 0;
-        vec3.dot(dotProduct, lightPosView3, normal);
+        let dotProduct = vec3.dot(lightPosView3, normal);
 
         if (dotProduct < -lightRadius) {
           xMax = x;
+          xMax = Math.max(x - 1, 0);
           break;
         } 
       }
@@ -101,11 +102,10 @@ export default class BaseRenderer {
         let angle = yStart + y * yStride;
 
         let normal = vec3.fromValues(0, cos_atan(angle), -sin_atan(angle));
-        let dotProduct = 0;
-        vec3.dot(dotProduct, lightPosView3, normal);
+        let dotProduct = vec3.dot(lightPosView3, normal);
 
         if (dotProduct < lightRadius) {
-          yMin = y;
+          yMin = Math.max(y - 1, 0);
           break;
         } 
       }
@@ -114,8 +114,7 @@ export default class BaseRenderer {
         let angle = yStart + y * yStride;
 
         let normal = vec3.fromValues(0, cos_atan(angle), -sin_atan(angle));
-        let dotProduct = 0;
-        vec3.dot(dotProduct, lightPosView3, normal);
+        let dotProduct = vec3.dot(lightPosView3, normal);
 
         if (dotProduct < -lightRadius) {
           yMax = y;
@@ -123,10 +122,9 @@ export default class BaseRenderer {
         } 
       }
 
-      
       // z direction
-      let zMin = Math.floor(((lightPosView3[2] - camera.near) / zStride) - lightRadius);
-      let zMax = Math.ceil(((lightPosView3[2] - camera.near) / zStride) + lightRadius);
+      let zMin = Math.floor(((lightPosView3[2] - lightRadius - camera.near) / zStride));
+      let zMax = Math.ceil(((lightPosView3[2] + lightRadius - camera.near) / zStride));
 
       // if light is completely out of bounds of frustum, skip it
       if (zMax < 0 || zMin > this._zSlices) {
@@ -139,9 +137,8 @@ export default class BaseRenderer {
 
       //console.log("this._zSlices = " + this._zSlices);
 
-      //console.log("zMin = " + zMin);
-      //console.log("zMax = " + zMax);
-
+      //console.log("xMin = " + xMin);
+      //console.log("xMax = " + xMax);
 
       for (let x = xMin; x < xMax; ++x) {
         for (let y = yMin; y < yMax; ++y) {
@@ -149,13 +146,17 @@ export default class BaseRenderer {
             let i = x + y * this._xSlices + z * this._xSlices * this._ySlices;
 
             let numLightsInCluster = this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, 0)];
+            //console.log("numLightsInCluster =  " + numLightsInCluster);
 
             if (numLightsInCluster < MAX_LIGHTS_PER_CLUSTER) {
               numLightsInCluster++;
-              //console.log("numLightsInCluster =  " + numLightsInCluster);
               this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, 0)] = numLightsInCluster;
+
+              let row = Math.floor(numLightsInCluster / 4);
+              let component = numLightsInCluster - row * 4;
+              this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, row) + component] = l;
   
-              this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, numLightsInCluster)] = l;
+              //this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, numLightsInCluster)] = l;
             }
           }
         }

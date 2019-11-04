@@ -101,18 +101,19 @@ export default function(params) {
     int clusterID = clusterX + clusterY * u_numSlices.x + clusterZ * u_numSlices.x * u_numSlices.y;
 
     int numClusters = u_numSlices.x * u_numSlices.y * u_numSlices.z;
+    int textureHeight = int(ceil(float(${params.numLights} + 1) / 4.0));
 
     // get number of lights
     float u = float(clusterID + 1) / float(numClusters + 1);
     int numLights = int(texture2D(u_clusterbuffer, vec2(u, 0)).x);
 
-    for (int i = 0; i < ${params.numLights}; ++i) {
-      if (i >= numLights) {
+    for (int l = 0; l < ${params.numLights}; ++l) {
+      if (l >= numLights) {
         break;
       }
 
-      int lightIndex = int(ExtractFloat(u_clusterbuffer, numClusters, ${params.numLights} + 1, clusterID, i + 1));
-      Light light = UnpackLight(i);
+      int lightIndex = int(ExtractFloat(u_clusterbuffer, numClusters, textureHeight, clusterID, l + 1));
+      Light light = UnpackLight(lightIndex);
 
       float lightDistance = distance(light.position, v_position);
       vec3 L = (light.position - v_position) / lightDistance;
@@ -139,9 +140,17 @@ export default function(params) {
     const vec3 ambientLight = vec3(0.025);
     fragColor += albedo * ambientLight;
 
+
+    // for visualizing clusters
+    vec3 gray = vec3(float(numLights) / 100.0);
     gl_FragColor = vec4(fragColor.x, fragColor.y, fragColor.z, 1.0);
 
+
+
+
     //float depth = gl_FragCoord.z * gl_FragCoord.w;
+
+  
     //gl_FragColor = vec4(depth, depth, depth, 1.0);
 
   }
