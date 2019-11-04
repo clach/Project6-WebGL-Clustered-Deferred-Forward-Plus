@@ -3,10 +3,21 @@ export default function(params) {
   #version 100
   precision highp float;
 
+#define TOON_SHADING 1
+#define CLUSTERED 1
+#define BLINNPHONG 1
+
+
   uniform vec2 u_dimensions;
-  
+  uniform ivec3 u_numSlices;
+  uniform mat4 u_viewMat;
+  uniform vec2 u_nearFar;
+  uniform vec3 u_eye;
+
   uniform sampler2D u_lightbuffer;
   uniform sampler2D u_clusterbuffer;
+
+  uniform sampler2D u_depth;
 
   uniform sampler2D u_gbuffers[${params.numGBuffers}];
   
@@ -62,26 +73,13 @@ export default function(params) {
     }
   }
 
-  mat3 xKernel = mat3(3, 10, 3,
-                               0, 0, 0,
-                              -3, -10, -3);
-
-  mat3 yKernel = mat3(3, 0, -3,
-                          10, 0, -10,
-                           3, 0, -3);
-
-
-                           mat3 sx = mat3( 
-                            1.0, 2.0, 1.0, 
-                            0.0, 0.0, 0.0, 
-                           -1.0, -2.0, -1.0 
-                        );
-                        mat3 sy = mat3( 
-                            1.0, 0.0, -1.0, 
-                            2.0, 0.0, -2.0, 
-                            1.0, 0.0, -1.0 
-                        );
-
+  mat3 kernelX = mat3(1.0, 1.0, 1.0, 
+                      0.0, 0.0, 0.0, 
+                     -1.0, -1.0, -1.0);
+  
+  mat3 kernelY = mat3(1.0, 0.0, -1.0, 
+                      1.0, 0.0, -1.0, 
+                      1.0, 0.0, -1.0);
 
   void main() {
     // TODO: extract data from g buffers and do lighting
@@ -90,70 +88,148 @@ export default function(params) {
     vec4 gb2 = texture2D(u_gbuffers[2], v_uv);
     // vec4 gb3 = texture2D(u_gbuffers[3], v_uv);
 
+    float near = u_nearFar.x;
+    float far = u_nearFar.y;
+
     vec3 albedo = gb0.xyz;
     vec3 pos = gb1.xyz;
     vec3 nor = gb2.xyz;
+    float depth = texture2D(u_depth, v_uv).x;
+    depth = (2.0 * near) / (far + near - depth * (far - near));
 
     vec3 fragColor = vec3(0.0);
 
+  #if CLUSTERED
+    vec3 fragPos = vec3(gl_FragCoord.x / u_dimensions.x, 
+      gl_FragCoord.y / u_dimensions.y, 
+      gl_FragCoord.z * gl_FragCoord.w);
+
+    // get cluster index in 3D
+    vec4 posView = u_viewMat * vec4(pos, 1.0);
+    int clusterX = int(float(u_numSlices.x) * fragPos.x); 
+    int clusterY = int(float(u_numSlices.y) * fragPos.y); 
+    int clusterZ = int((-posView.z - near) * float(u_numSlices.z) / (far - near));
+
+    // get cluster index in 1D
+    int clusterID = clusterX + clusterY * u_numSlices.x + clusterZ * u_numSlices.x * u_numSlices.y;
+
+    // numClusters = textureWidth also
+    int numClusters = u_numSlices.x * u_numSlices.y * u_numSlices.z;
+    int textureHeight = int(ceil(float(${params.numLights} + 1) / 4.0));
+
+    // get number of lights
+    int numLights = int(texture2D(u_clusterbuffer, 
+    vec2(float(clusterID + 1) / float(numClusters + 1), 0)).x);
+#endif // #if CLUSTERED
+
+
+#if TOON_SHADING
     const int levels = 5;
     const float scaleFactor = 1.0 / float(levels);
+    vec3 lightAccum = vec3(0);
 
-    vec3 lightFactor = vec3(0);
-    for (int i = 0; i < ${params.numLights}; ++i) {
-      Light light = UnpackLight(i);
+#endif // #if TOON_SHADING
+
+    for (int l = 0; l < ${params.numLights}; ++l) {
+      int lightIndex = l;
+#if CLUSTERED
+      if (l >= numLights) {
+        break;
+      }
+
+      lightIndex = int(ExtractFloat(u_clusterbuffer, numClusters, textureHeight, clusterID, l + 1));
+#endif // #if CLUSTERED     
+
+      Light light = UnpackLight(lightIndex);
       float lightDistance = distance(light.position, pos);
       vec3 L = (light.position - pos) / lightDistance;
 
       float lightIntensity = cubicGaussian(2.0 * lightDistance / light.radius);
-      float lambertTerm = max(dot(L, nor), 0.0);
+      float lambertTerm = dot(L, nor);
 
+#if TOON_SHADING
+      // remap from [-1, 1] to [0, 1]
+      lambertTerm = clamp(lambertTerm, -1.0, 1.0) * 0.5 + 0.5;
+      fragColor += albedo * light.color * vec3(lightIntensity) * floor(lambertTerm * float(levels)) * scaleFactor;
+#else // #if TOON_SHADING
+      lambertTerm = max(lambertTerm, 0.0);
       fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity);
 
-
-
-
-
-      float diffuseTerm = dot(L, nor) * 0.5 + 0.5;
-
-      // TWO DIFFERENT TYPES OF TOON RAMP SHADING
-      //fragColor += albedo * light.color * vec3(lightIntensity) * floor(diffuseTerm * float(levels)) * scaleFactor;
-      //lightFactor += light.color * vec3(lightIntensity) * diffuseTerm * albedo;
+#if BLINNPHONG
+      vec3 viewDir = normalize(u_eye - pos);
+      vec3 halfwayDir = normalize(L + viewDir);
+      float specularTerm = pow(max(dot(halfwayDir, nor), 0.0), 20.0);
+      fragColor += specularTerm * light.color;
+#endif // #if BLINNPHONG
+#endif // #else // #if TOON_SHADING
     }
 
-    //fragColor = floor(lightFactor * float(levels)) * scaleFactor;// * albedo;
+#if TOON_SHADING
 
-
+    // edge detection with sobel filter
     mat3 I;
     for (int i=0; i<3; i++) {
         for (int j=0; j<3; j++) {
             vec2 offsetUV = vec2(v_uv.x + float(i) / u_dimensions.x, v_uv.y + float(j) / u_dimensions.y);
-            vec4 offsetColor = texture2D(u_gbuffers[2], offsetUV);
-            I[i][j] = length(offsetColor); 
+            vec4 offsetColor = texture2D(u_depth, offsetUV);
+            offsetColor = (2.0 * near) / (far + near - offsetColor * (far - near));
+            I[i][j] = length(offsetColor);
         }
     }
 
-    float gx = dot(sx[0], I[0]) + dot(sx[1], I[1]) + dot(sx[2], I[2]); 
-    float gy = dot(sy[0], I[0]) + dot(sy[1], I[1]) + dot(sy[2], I[2]);
+    float gx = dot(kernelX[0], I[0]) + dot(kernelX[1], I[1]) + dot(kernelX[2], I[2]); 
+    float gy = dot(kernelY[0], I[0]) + dot(kernelY[1], I[1]) + dot(kernelY[2], I[2]);
 
     float g = sqrt(pow(gx, 2.0) + pow(gy, 2.0));
 
 
+
+
+    mat3 I2;
+    for (int i=0; i<3; i++) {
+        for (int j=0; j<3; j++) {
+            vec2 offsetUV = vec2(v_uv.x + float(i) / u_dimensions.x, v_uv.y + float(j) / u_dimensions.y);
+            vec4 offsetColor = texture2D(u_gbuffers[2], offsetUV);
+            I2[i][j] = length(offsetColor);
+        }
+    }
+
+    float gx2 = dot(kernelX[0], I2[0]) + dot(kernelX[1], I2[1]) + dot(kernelX[2], I2[2]); 
+    float gy2 = dot(kernelY[0], I2[0]) + dot(kernelY[1], I2[1]) + dot(kernelY[2], I2[2]);
+
+    float g2 = sqrt(pow(gx2, 2.0) + pow(gy2, 2.0));
+
     // attempts at filtering g
-    // Try different values and see what happens
-    g = smoothstep(0.4, 0.6, g);
+    g2 = smoothstep(0.9, 1.0, g2);
 
-    vec3 edgeColor = vec3(0.0, 0.0, 0.0);
-    //fragColor = mix(fragColor, edgeColor, g);
 
+
+
+
+    mat3 I3;
+    for (int i=0; i<3; i++) {
+        for (int j=0; j<3; j++) {
+            vec2 offsetUV = vec2(v_uv.x + float(i) / u_dimensions.x, v_uv.y + float(j) / u_dimensions.y);
+            vec4 offsetColor = texture2D(u_gbuffers[3], offsetUV);
+            I3[i][j] = length(offsetColor);
+        }
+    }
+
+    float gx3 = dot(kernelX[0], I3[0]) + dot(kernelX[1], I3[1]) + dot(kernelX[2], I3[2]); 
+    float gy3 = dot(kernelY[0], I3[0]) + dot(kernelY[1], I3[1]) + dot(kernelY[2], I3[2]);
+
+    float g3 = sqrt(pow(gx3, 2.0) + pow(gy3, 2.0));
+
+
+    vec3 edgeColor = vec3(1.0, 0.0, 0.0);
+    //fragColor = mix(fragColor, edgeColor, g3);
+
+    if (g + g2 + g3 > 0.1) {
+      fragColor = edgeColor;
+
+    }
     //fragColor -= g;
-
-
-    //fragColor = vec3(g);
-
-
-
-
+#endif // #if TOON_SHADING
 
     // albedo
     //gl_FragColor = vec4(albedo, 1.0);
@@ -163,6 +239,8 @@ export default function(params) {
 
     // normals
     //gl_FragColor = vec4(nor, 1.0);
+
+    vec3 fefe = texture2D(u_gbuffers[3], v_uv).xyz;
 
     gl_FragColor = vec4(fragColor, 1.0);
   }

@@ -49,9 +49,8 @@ export default class BaseRenderer {
      const zStride = frustumDepth / this._zSlices;
 
     for (let l = 0; l < NUM_LIGHTS; ++l) {
-      //console.log("light " + l);
-      let light = scene.lights[l];
-      let lightPos = vec4.fromValues(light.position[0], light.position[1], light.position[2], 1);
+      const light = scene.lights[l];
+      const lightPos = vec4.fromValues(light.position[0], light.position[1], light.position[2], 1);
 
       const lightRadius = light.radius;
 
@@ -61,63 +60,60 @@ export default class BaseRenderer {
 
       // use as vec3 from now on
       // and flip z direction
-      let lightPosView3 = vec3.fromValues(lightPosView[0], lightPosView[1], -lightPosView[2]);
+      const lightPosView3 = vec3.fromValues(lightPosView[0], lightPosView[1], -lightPosView[2]);
 
       // x direction
+      const xStart = -frustumWidth / 2;
       let xMin = 0;
-      let xMax = this._xSlices;
-      const xStart = -(frustumWidth / 2);
-      for (let x = 0; x <= this._xSlices; ++x) {
-        let angle = xStart + x * xStride;
+      for (let x = 0; x <= this._xSlices + 1; ++x) {
+        let curr = xStart + x * xStride;
 
-        let normal = vec3.fromValues(cos_atan(angle), 0, -sin_atan(angle));
+        let normal = vec3.fromValues(cos_atan(curr), 0, -sin_atan(curr));
         let dotProduct = vec3.dot(lightPosView3, normal);
-        //console.log("dotProduct = " + dotProduct);
 
         if (dotProduct < lightRadius) {
-          xMin = Math.max(x - 1, 0);
+          xMin = Math.max(0, x - 1);
           break;
         } 
       }
       
+      let xMax = this._xSlices;
+      for (let x = xMin + 1; x <= this._xSlices + 1; ++x) {
+        let curr = xStart + x * xStride;
 
-      for (let x = xMin; x <= this._xSlices; ++x) {
-        let angle = xStart + x * xStride;
-
-        let normal = vec3.fromValues(cos_atan(angle), 0, -sin_atan(angle));
+        let normal = vec3.fromValues(cos_atan(curr), 0, -sin_atan(curr));
         let dotProduct = vec3.dot(lightPosView3, normal);
 
-        if (dotProduct < -lightRadius) {
-          xMax = x;
-          xMax = Math.max(x - 1, 0);
+        if (dotProduct > lightRadius) {
+          xMax = Math.max(0, x - 1);
           break;
         } 
       }
 
       // y direction
+      const yStart = -halfFrustumHeight;
       let yMin = 0;
-      let yMax = this._ySlices;
-      const yStart = -(halfFrustumHeight);
-      for (let y = 0; y <= this._ySlices; ++y) {
-        let angle = yStart + y * yStride;
+      for (let y = 0; y <= this._ySlices + 1; ++y) {
+        let curr = yStart + y * yStride;
 
-        let normal = vec3.fromValues(0, cos_atan(angle), -sin_atan(angle));
+        let normal = vec3.fromValues(0, cos_atan(curr), -sin_atan(curr));
         let dotProduct = vec3.dot(lightPosView3, normal);
 
         if (dotProduct < lightRadius) {
-          yMin = Math.max(y - 1, 0);
+          yMin = Math.max(0, y - 1);
           break;
         } 
       }
 
-      for (let y = yMin; y <= this._ySlices; ++y) {
-        let angle = yStart + y * yStride;
+      let yMax = this._ySlices;
+      for (let y = yMin + 1; y <= this._ySlices + 1; ++y) {
+        let curr = yStart + y * yStride;
 
-        let normal = vec3.fromValues(0, cos_atan(angle), -sin_atan(angle));
+        let normal = vec3.fromValues(0, cos_atan(curr), -sin_atan(curr));
         let dotProduct = vec3.dot(lightPosView3, normal);
 
-        if (dotProduct < -lightRadius) {
-          yMax = y;
+        if (dotProduct > lightRadius) {
+          yMax = Math.max(0, y - 1);
           break;
         } 
       }
@@ -135,8 +131,6 @@ export default class BaseRenderer {
       zMin = Math.max(0, zMin);
       zMax = Math.min(this._zSlices, zMax);
 
-      //console.log("this._zSlices = " + this._zSlices);
-
       //console.log("xMin = " + xMin);
       //console.log("xMax = " + xMax);
 
@@ -145,18 +139,15 @@ export default class BaseRenderer {
           for (let z = zMin; z < zMax; ++z) {
             let i = x + y * this._xSlices + z * this._xSlices * this._ySlices;
 
-            let numLightsInCluster = this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, 0)];
-            //console.log("numLightsInCluster =  " + numLightsInCluster);
+            let numLights = this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, 0)];
 
-            if (numLightsInCluster < MAX_LIGHTS_PER_CLUSTER) {
-              numLightsInCluster++;
-              this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, 0)] = numLightsInCluster;
-
-              let row = Math.floor(numLightsInCluster / 4);
-              let component = numLightsInCluster - row * 4;
+            if (numLights < MAX_LIGHTS_PER_CLUSTER) {
+              numLights++;
+              this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, 0)] = numLights;
+              
+              let row = Math.floor(numLights / 4);
+              let component = numLights - row * 4;
               this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, row) + component] = l;
-  
-              //this._clusterTexture.buffer[this._clusterTexture.bufferIndex(i, numLightsInCluster)] = l;
             }
           }
         }

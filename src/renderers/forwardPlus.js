@@ -18,7 +18,7 @@ export default class ForwardPlusRenderer extends BaseRenderer {
       numLights: NUM_LIGHTS,
     }), {
       uniforms: ['u_viewProjectionMatrix', 'u_colmap', 'u_normap', 'u_lightbuffer', 'u_clusterbuffer', 
-      'u_dimensions', 'u_numSlices', 'u_viewMat'],
+      'u_dimensions', 'u_numSlices', 'u_viewMat', 'u_nearFar'],
       attribs: ['a_position', 'a_normal', 'a_uv'],
     });
 
@@ -76,7 +76,7 @@ export default class ForwardPlusRenderer extends BaseRenderer {
     gl.bindTexture(gl.TEXTURE_2D, this._clusterTexture.glTexture);
     gl.uniform1i(this._shaderProgram.u_clusterbuffer, 3);
 
-    // TODO: Bind any other shader inputs
+    // DONE: Bind any other shader inputs
 
     // Upload the canvas dimensions
     gl.uniform2f(this._shaderProgram.u_dimensions, canvas.width, canvas.height);
@@ -87,6 +87,8 @@ export default class ForwardPlusRenderer extends BaseRenderer {
     // Upload the view matrix
     gl.uniformMatrix4fv(this._shaderProgram.u_viewMat, false, this._viewMatrix);
 
+    // Upload the near and far plane
+    gl.uniform2f(this._shaderProgram.u_nearFar, camera.near, camera.far);
 
     // Draw the scene. This function takes the shader program so that the model's textures can be bound to the right inputs
     scene.draw(this._shaderProgram);
