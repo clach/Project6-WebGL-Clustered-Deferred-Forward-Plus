@@ -30,7 +30,7 @@ export default class ClusteredRenderer extends BaseRenderer {
       numGBuffers: NUM_GBUFFERS,
     }), {
       uniforms: ['u_dimensions', 'u_numSlices', 'u_viewMat', 'u_nearFar', 
-                 'u_eye', 'u_lightbuffer', 'u_clusterbuffer', 'u_depth', 
+                 'u_eye', 'u_invViewProj', 'u_lightbuffer', 'u_clusterbuffer', 'u_depth', 
                  'u_gbuffers[0]', 'u_gbuffers[1]', 'u_gbuffers[2]', 'u_gbuffers[3]'],
       attribs: ['a_uv'],
     });
@@ -171,6 +171,11 @@ export default class ClusteredRenderer extends BaseRenderer {
 
     // Upload the camera position
     gl.uniform3f(this._progShade.u_eye, camera.position[0], camera.position[1], camera.position[2]);
+
+    // Upload the inverse view projection matrix
+    let invViewProj = mat4.create();
+    mat4.invert(invViewProj, this._viewProjectionMatrix);
+    gl.uniformMatrix4fv(this._progShade.u_invViewProj, false, invViewProj);
 
     // Set the light texture as a uniform input to the shader
     gl.activeTexture(gl.TEXTURE0);

@@ -3,16 +3,19 @@ export default function(params) {
   #version 100
   precision highp float;
 
-#define TOON_SHADING 1
+#define TOON_SHADING 0
 #define CLUSTERED 1
 #define BLINNPHONG 1
 
+#define RECONSTRUCT_POS 1
+#define RECONSTRUCT_NOR 1
 
   uniform vec2 u_dimensions;
   uniform ivec3 u_numSlices;
   uniform mat4 u_viewMat;
   uniform vec2 u_nearFar;
   uniform vec3 u_eye;
+  uniform mat4 u_invViewProj;
 
   uniform sampler2D u_lightbuffer;
   uniform sampler2D u_clusterbuffer;
@@ -82,27 +85,40 @@ export default function(params) {
                       1.0, 0.0, -1.0);
 
   void main() {
-    // TODO: extract data from g buffers and do lighting
-    vec4 gb0 = texture2D(u_gbuffers[0], v_uv);
-    vec4 gb1 = texture2D(u_gbuffers[1], v_uv);
-    vec4 gb2 = texture2D(u_gbuffers[2], v_uv);
+    // DONE: extract data from g buffers and do lighting
+    vec3 gb0 = texture2D(u_gbuffers[0], v_uv).xyz;
+    vec3 gb1 = texture2D(u_gbuffers[1], v_uv).xyz;
+    //vec3 gb2 = texture2D(u_gbuffers[2], v_uv);
     // vec4 gb3 = texture2D(u_gbuffers[3], v_uv);
 
     float near = u_nearFar.x;
     float far = u_nearFar.y;
 
-    vec3 albedo = gb0.xyz;
-    vec3 pos = gb1.xyz;
-    vec3 nor = gb2.xyz;
+    vec3 albedo = gb0;
+    //vec3 pos = gb1.xyz;
+    vec3 nor = gb1.xyz;
+
+    // reconstruct worldspace position
+    vec4 clipSpacePos;
+    clipSpacePos.xy = v_uv * 2.0 - 1.0;
+    clipSpacePos.z = texture2D(u_depth, v_uv).r * 2.0 - 1.0;
+    clipSpacePos.w = 1.0;
+    vec4 pos4 = u_invViewProj * clipSpacePos;
+    vec3 pos = pos4.xyz / pos4.w;
+
+    // reconstruct normals
+    //vec3 nor = vec3(gb1.xy, 0.0);
+    //nor.z = sqrt(1.0 - pow(nor.x, 2.0) - pow(nor.y, 2.0));
+
+    // get depth
     float depth = texture2D(u_depth, v_uv).x;
     depth = (2.0 * near) / (far + near - depth * (far - near));
 
     vec3 fragColor = vec3(0.0);
 
   #if CLUSTERED
-    vec3 fragPos = vec3(gl_FragCoord.x / u_dimensions.x, 
-      gl_FragCoord.y / u_dimensions.y, 
-      gl_FragCoord.z * gl_FragCoord.w);
+    vec2 fragPos = vec2(gl_FragCoord.x / u_dimensions.x, 
+                        gl_FragCoord.y / u_dimensions.y);
 
     // get cluster index in 3D
     vec4 posView = u_viewMat * vec4(pos, 1.0);
@@ -173,6 +189,7 @@ export default function(params) {
             vec2 offsetUV = vec2(v_uv.x + float(i) / u_dimensions.x, v_uv.y + float(j) / u_dimensions.y);
             vec4 offsetColor = texture2D(u_depth, offsetUV);
             offsetColor = (2.0 * near) / (far + near - offsetColor * (far - near));
+            //offsetColor = (2.0 * 0.001) / (1.0 + 0.001 - offsetColor * (1.0 - 0.001));
             I[i][j] = length(offsetColor);
         }
     }
@@ -239,8 +256,6 @@ export default function(params) {
 
     // normals
     //gl_FragColor = vec4(nor, 1.0);
-
-    vec3 fefe = texture2D(u_gbuffers[3], v_uv).xyz;
 
     gl_FragColor = vec4(fragColor, 1.0);
   }
