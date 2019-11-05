@@ -178,9 +178,9 @@ export default function(params) {
       fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity);
 
 #if BLINNPHONG
-      vec3 viewDir = normalize(u_eye - pos);
-      vec3 halfwayDir = normalize(L + viewDir);
-      float specularTerm = pow(max(dot(L, nor), 0.0), 75.0);
+      //vec3 viewDir = normalize(u_eye - pos);
+      //vec3 halfwayDir = normalize(L + viewDir);
+      float specularTerm = pow(abs(dot(L, nor)), 50.0);
       //fragColor += specularTerm * light.color;
 #endif // #if BLINNPHONG
 #endif // #else // #if TOON_SHADING
