@@ -6,7 +6,7 @@ Caroline Lachanski: [LinkedIn](https://www.linkedin.com/in/caroline-lachanski/),
 
 Tested on: Google Chrome 78.0.3904.70, Windows 10, i5-6500 @ 3.20GHz 16GB, GTX 1660 (personal computer)
 
-![**Live demo here**]()
+![**Live demo here**](http://carolinelachanski.com/Project6-WebGL-Clustered-Deferred-Forward-Plus/)
 
 ![](images/forwardPlus.gif)
 
