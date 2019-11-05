@@ -144,7 +144,7 @@ export default function(params) {
 
 
 #if TOON_SHADING
-    const int levels = 5;
+    const int levels = 4;
     const float scaleFactor = 1.0 / float(levels);
     vec3 lightAccum = vec3(0);
 
@@ -170,7 +170,9 @@ export default function(params) {
 #if TOON_SHADING
       // remap from [-1, 1] to [0, 1]
       lambertTerm = clamp(lambertTerm, -1.0, 1.0) * 0.5 + 0.5;
-      fragColor += albedo * light.color * vec3(lightIntensity) * floor(lambertTerm * float(levels)) * scaleFactor;
+      //fragColor += albedo * light.color * vec3(lightIntensity) * floor(lambertTerm * float(levels)) * scaleFactor;
+      lightAccum += albedo * lambertTerm * light.color * vec3(lightIntensity);
+
 #else // #if TOON_SHADING
       lambertTerm = max(lambertTerm, 0.0);
       fragColor += albedo * lambertTerm * light.color * vec3(lightIntensity);
@@ -186,7 +188,11 @@ export default function(params) {
 
 #if TOON_SHADING
 
+    fragColor = floor(lightAccum * float(levels)) * scaleFactor;
+
     // edge detection with sobel filter
+
+    // edge detection based on depth
     mat3 I;
     for (int i=0; i<3; i++) {
         for (int j=0; j<3; j++) {
@@ -203,14 +209,12 @@ export default function(params) {
 
     float g = sqrt(pow(gx, 2.0) + pow(gy, 2.0));
 
-
-
-
+    // edge detection based on normals
     mat3 I2;
     for (int i=0; i<3; i++) {
         for (int j=0; j<3; j++) {
             vec2 offsetUV = vec2(v_uv.x + float(i) / u_dimensions.x, v_uv.y + float(j) / u_dimensions.y);
-            vec4 offsetColor = texture2D(u_gbuffers[2], offsetUV);
+            vec4 offsetColor = texture2D(u_gbuffers[1], offsetUV);
             I2[i][j] = length(offsetColor);
         }
     }
@@ -221,12 +225,10 @@ export default function(params) {
     float g2 = sqrt(pow(gx2, 2.0) + pow(gy2, 2.0));
 
     // attempts at filtering g
-    g2 = smoothstep(0.9, 1.0, g2);
+    g2 = smoothstep(0.7, 1.0, g2);
 
-
-
-
-
+    /*
+    // edge detection based on normals WITHOUT normal map applied
     mat3 I3;
     for (int i=0; i<3; i++) {
         for (int j=0; j<3; j++) {
@@ -240,16 +242,14 @@ export default function(params) {
     float gy3 = dot(kernelY[0], I3[0]) + dot(kernelY[1], I3[1]) + dot(kernelY[2], I3[2]);
 
     float g3 = sqrt(pow(gx3, 2.0) + pow(gy3, 2.0));
+    */
 
+    vec3 edgeColor = vec3(0.0, 0.0, 0.0);
+    fragColor = mix(fragColor, edgeColor, g + g2);
 
-    vec3 edgeColor = vec3(1.0, 0.0, 0.0);
-    //fragColor = mix(fragColor, edgeColor, g3);
-
-    if (g + g2 + g3 > 0.1) {
+    if (g + g2 > 0.1) {
       fragColor = edgeColor;
-
     }
-    //fragColor -= g;
 #endif // #if TOON_SHADING
 
     // albedo

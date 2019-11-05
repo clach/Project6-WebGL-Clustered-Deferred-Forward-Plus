@@ -3,7 +3,7 @@ import { NUM_LIGHTS } from '../scene';
 import { ceil } from 'gl-matrix/src/gl-matrix/vec2';
 import { mat4, vec4, vec3 } from 'gl-matrix';
 
-export const MAX_LIGHTS_PER_CLUSTER = 500;
+export const MAX_LIGHTS_PER_CLUSTER = 150;
 
 const PI = 3.141592653589793;
 
@@ -24,7 +24,7 @@ export default class BaseRenderer {
   }
 
   updateClusters(camera, viewMatrix, scene) {
-    // TODO: Update the cluster texture with the count and indices of the lights in each cluster
+    // DONE: Update the cluster texture with the count and indices of the lights in each cluster
     // This will take some time. The math is nontrivial...
 
     for (let z = 0; z < this._zSlices; ++z) {
@@ -130,9 +130,6 @@ export default class BaseRenderer {
       // clamp values if only partially out of bounds
       zMin = Math.max(0, zMin);
       zMax = Math.min(this._zSlices, zMax);
-
-      //console.log("xMin = " + xMin);
-      //console.log("xMax = " + xMax);
 
       for (let x = xMin; x < xMax; ++x) {
         for (let y = yMin; y < yMax; ++y) {
