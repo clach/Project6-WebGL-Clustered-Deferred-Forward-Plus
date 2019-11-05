@@ -86,17 +86,20 @@ export default function(params) {
 
   void main() {
     // DONE: extract data from g buffers and do lighting
-    vec3 gb0 = texture2D(u_gbuffers[0], v_uv).xyz;
-    vec3 gb1 = texture2D(u_gbuffers[1], v_uv).xyz;
-    //vec3 gb2 = texture2D(u_gbuffers[2], v_uv);
+    vec4 gb0 = texture2D(u_gbuffers[0], v_uv);
+    vec4 gb1 = texture2D(u_gbuffers[1], v_uv);
+    //vec4 gb2 = texture2D(u_gbuffers[2], v_uv);
     // vec4 gb3 = texture2D(u_gbuffers[3], v_uv);
 
     float near = u_nearFar.x;
     float far = u_nearFar.y;
 
-    vec3 albedo = gb0;
+    vec3 albedo = gb0.xyz;
     //vec3 pos = gb1.xyz;
     vec3 nor = gb1.xyz;
+
+    // get depth
+    float depth = texture2D(u_depth, v_uv).x;
 
     // reconstruct worldspace position
     vec4 clipSpacePos;
@@ -107,12 +110,13 @@ export default function(params) {
     vec3 pos = pos4.xyz / pos4.w;
 
     // reconstruct normals
-    //vec3 nor = vec3(gb1.xy, 0.0);
+    //vec3 nor = vec3(gb1.x, gb1.y, 0.0);
     //nor.z = sqrt(1.0 - pow(nor.x, 2.0) - pow(nor.y, 2.0));
 
-    // get depth
-    float depth = texture2D(u_depth, v_uv).x;
+#if TOON_SHADING
+    // remap depth
     depth = (2.0 * near) / (far + near - depth * (far - near));
+#endif // #if TOON_SHADING
 
     vec3 fragColor = vec3(0.0);
 
@@ -174,8 +178,8 @@ export default function(params) {
 #if BLINNPHONG
       vec3 viewDir = normalize(u_eye - pos);
       vec3 halfwayDir = normalize(L + viewDir);
-      float specularTerm = pow(max(dot(halfwayDir, nor), 0.0), 20.0);
-      fragColor += specularTerm * light.color;
+      float specularTerm = pow(max(dot(L, nor), 0.0), 75.0);
+      //fragColor += specularTerm * light.color;
 #endif // #if BLINNPHONG
 #endif // #else // #if TOON_SHADING
     }

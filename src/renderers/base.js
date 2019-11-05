@@ -3,7 +3,7 @@ import { NUM_LIGHTS } from '../scene';
 import { ceil } from 'gl-matrix/src/gl-matrix/vec2';
 import { mat4, vec4, vec3 } from 'gl-matrix';
 
-export const MAX_LIGHTS_PER_CLUSTER = 100;
+export const MAX_LIGHTS_PER_CLUSTER = 500;
 
 const PI = 3.141592653589793;
 

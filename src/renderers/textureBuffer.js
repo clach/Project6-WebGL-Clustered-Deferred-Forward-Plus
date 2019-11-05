@@ -7,6 +7,8 @@ export default class TextureBuffer {
    * @param {Number} elementSize The number of values in each item of the buffer
    */
   constructor(elementCount, elementSize) {
+
+    console.log(gl.getParameter(gl.MAX_TEXTURE_SIZE));
     // Initialize the texture. We use gl.NEAREST for texture filtering because we don't want to blend between values in the buffer. We want the exact value
     this._glTexture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this._glTexture);
